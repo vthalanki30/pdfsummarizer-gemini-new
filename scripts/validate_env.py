@@ -247,7 +247,9 @@ def print_report(report: Report, env_source: Path | None) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--offline", action="store_true", help="skip network checks")
     parser.add_argument("--json", action="store_true", help="emit JSON report only")
     parser.add_argument("--timeout", type=float, default=30.0, help="per-request timeout seconds")

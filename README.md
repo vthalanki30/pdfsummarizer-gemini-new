@@ -12,11 +12,48 @@ then ask questions about the document with page-level citations.
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 0 | Validate Gemini access + GitHub auth, repo bootstrap | ✅ complete |
-| 1 | PDF ingestion, page-aware chunking, token accounting | 🚧 in progress |
-| 2 | Summarisation engine (stuff / map-reduce / refine) | ⬜ planned |
+| 1 | PDF ingestion, page-aware chunking, token accounting | ✅ complete |
+| 2 | Summarisation engine (stuff / map-reduce / refine) | 🚧 in progress |
 | 3 | Streamlit UI | ⬜ planned |
 | 4 | RAG Q&A with page citations | ⬜ planned |
 | 5 | Hardening, CI, Streamlit Cloud deploy | ⬜ planned |
+
+## Try it now
+
+Inspect any PDF (no API calls, no key required):
+
+```bash
+python scripts/cli.py inspect path/to/document.pdf
+python scripts/cli.py inspect path/to/document.pdf --json
+```
+
+```
+PDF          : 15246372705.4Q1.pdf
+pages        : 13
+characters   : 21,466
+est. tokens  : 5,372
+empty pages  : none
+scanned?     : no
+chunks       : 13 (min 146 / avg 413.2 / max 652 tokens, budget 3000+200)
+```
+
+The loader reports what it actually recovered: pages with no text, documents that look
+like scans (which need OCR before summarising), and repeated headers/footers it stripped.
+
+## Project layout
+
+```
+app.py                  # Streamlit UI (Phase 3)
+src/config.py           # validated settings from env / .env
+src/pdf_loader.py       # extraction, normalisation, quality signals
+src/chunking.py         # page-aware chunking + chunk statistics
+src/tokens.py           # token estimates, exact counts via countTokens
+src/errors.py           # user-presentable error types
+scripts/validate_env.py # Phase 0 gate: keys, API, model, embeddings
+scripts/cli.py          # inspect (and summarise from Phase 2)
+tests/                  # pytest suite, real PDFs generated with reportlab
+```
+
 
 ## Requirements
 
@@ -65,6 +102,28 @@ count — exact counts are fetched from Gemini's `countTokens` endpoint only whe
 changes behaviour.
 
 Secrets live in `.env`, which is git-ignored. Never commit it.
+
+## Development
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest                      # 65 unit tests, no network needed
+python -m pytest -m live              # opt-in tests that hit the real API
+python -m ruff check .
+```
+
+Tests generate their own PDFs with `reportlab`, so the suite runs offline and needs no fixtures
+from disk.
+
+## How chunking works
+
+Text is split per page, never across pages — a claim in a summary must point at one page, and a
+retrieval hit is useless if its citation straddles two. Overlap is applied *within* a page, so
+context still flows between neighbouring chunks of the same page.
+
+Because of that, a 300-page PDF yields 300 page-chunks even at a 3,000-token budget. The
+summarisation map step therefore packs adjacent page-chunks into budget-sized groups (keeping the
+list of pages each group covers) instead of sending one request per page.
 
 ## License
 
