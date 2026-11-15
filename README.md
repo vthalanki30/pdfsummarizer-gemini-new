@@ -7,16 +7,31 @@ then ask questions about the document with page-level citations.
 
 ## Status
 
-✅ **Phase 2 — summarisation engine** complete (CLI only; UI lands in Phase 3)
+✅ **Phase 3 — Streamlit UI** complete
 
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 0 | Validate Gemini access + GitHub auth, repo bootstrap | ✅ complete |
 | 1 | PDF ingestion, page-aware chunking, token accounting | ✅ complete |
 | 2 | Summarisation engine (stuff / map-reduce / refine) | ✅ complete |
-| 3 | Streamlit UI | 🚧 in progress |
-| 4 | RAG Q&A with page citations | ⬜ planned |
+| 3 | Streamlit UI | ✅ complete |
+| 4 | RAG Q&A with page citations | 🚧 in progress |
 | 5 | Hardening, CI, Streamlit Cloud deploy | ⬜ planned |
+
+## Run the app
+
+```bash
+streamlit run app.py
+```
+
+Opens at <http://localhost:8501>. Upload a PDF, pick a strategy and length in the sidebar,
+and summarise. Results render as sections with page citations and can be downloaded as
+Markdown or JSON. Advanced controls expose the chunk budget, overlap, page guardrail and
+parallelism; changing them re-chunks the document automatically (the extraction result is
+cached per file, so reruns are instant).
+
+The app reads `GEMINI_API_KEY` from Streamlit secrets first (for Cloud), then the process
+environment, then `.env` — so the same code works locally and deployed.
 
 ## Try it now
 
@@ -76,8 +91,9 @@ Options: `--strategy auto|stuff|map_reduce|refine`, `--length brief|standard|det
 ## Project layout
 
 ```
-app.py                  # Streamlit UI (Phase 3)
-src/config.py           # validated settings from env / .env
+app.py                  # Streamlit UI
+.streamlit/config.toml  # theme, upload limit, telemetry off
+src/config.py           # validated settings from env / .env / secrets
 src/pdf_loader.py       # extraction, normalisation, quality signals
 src/chunking.py         # page-aware chunking, packing, statistics
 src/tokens.py           # token estimates, exact counts via countTokens
@@ -147,7 +163,7 @@ Secrets live in `.env`, which is git-ignored. Never commit it.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest                      # 151 unit tests, no network needed
+python -m pytest                      # 159 tests, no network needed
 python -m pytest -m live              # opt-in end-to-end tests that hit the real API
 python -m ruff check .
 ```
