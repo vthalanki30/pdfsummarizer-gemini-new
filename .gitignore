@@ -1,0 +1,30 @@
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- Outputs / data ---
+data/*.pdf
+!data/.gitkeep
+outputs/
+*.summary.json
+*.summary.md
+
+# --- Editors / OS ---
+.DS_Store
+Thumbs.db
