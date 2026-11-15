@@ -7,12 +7,12 @@ then ask questions about the document with page-level citations.
 
 ## Status
 
-🚧 **Phase 0 — environment & repository bootstrap** (in progress)
+✅ **Phase 0 — environment & repository bootstrap** complete
 
 | Phase | Scope | Status |
 | --- | --- | --- |
-| 0 | Validate Gemini access + GitHub auth, repo bootstrap | 🚧 in progress |
-| 1 | PDF ingestion, page-aware chunking, token accounting | ⬜ planned |
+| 0 | Validate Gemini access + GitHub auth, repo bootstrap | ✅ complete |
+| 1 | PDF ingestion, page-aware chunking, token accounting | 🚧 in progress |
 | 2 | Summarisation engine (stuff / map-reduce / refine) | ⬜ planned |
 | 3 | Streamlit UI | ⬜ planned |
 | 4 | RAG Q&A with page citations | ⬜ planned |
@@ -57,7 +57,12 @@ Use `--offline` for offline presence/format checks and `--json` for machine-read
 | `GEMINI_EMBEDDING_MODEL` | `gemini-embedding-001` | Embeddings for Q&A retrieval |
 | `MAX_PAGES` | `120` | Page guardrail |
 | `CHUNK_TOKENS` | `3000` | Target tokens per chunk |
+| `CHUNK_OVERLAP_TOKENS` | `200` | Overlap between chunks (within a page) |
 | `MAX_CONCURRENCY` | `4` | Parallel map-step requests |
+
+Token counts are estimates (≈4 characters per token) rather than a foreign tokenizer's
+count — exact counts are fetched from Gemini's `countTokens` endpoint only where accuracy
+changes behaviour.
 
 Secrets live in `.env`, which is git-ignored. Never commit it.
 
