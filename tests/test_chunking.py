@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from src.chunking import ChunkStats, build_splitter, chunk_document, group_by_page
+from src.chunking import ChunkStats, build_splitter, chunk_document, group_by_page, pack_chunks
 from src.errors import ConfigError, EmptyDocumentError
 from src.pdf_loader import load_pdf
 from src.tokens import estimate_tokens
@@ -106,3 +106,57 @@ def test_splitter_uses_token_length(document):
     splitter = build_splitter(400, 40)
     assert splitter._length_function is estimate_tokens
     assert splitter._chunk_size == 400
+
+
+class TestPacking:
+    def _chunks(self, document, chunk_tokens=400):
+        return chunk_document(document, chunk_tokens=chunk_tokens, overlap_tokens=40)
+
+    def test_packing_preserves_chunk_order(self, document):
+        chunks = self._chunks(document)
+        groups = pack_chunks(chunks, budget_tokens=1200)
+        flattened = [index for group in groups for index in group.chunk_indexes]
+        assert flattened == [chunk.metadata["chunk_index"] for chunk in chunks]
+
+    def test_packing_covers_all_pages(self, document):
+        chunks = self._chunks(document)
+        groups = pack_chunks(chunks, budget_tokens=1200)
+        pages = {page for group in groups for page in group.pages}
+        assert pages == {chunk.metadata["page"] for chunk in chunks}
+
+    def test_packing_keeps_total_tokens(self, document):
+        chunks = self._chunks(document)
+        groups = pack_chunks(chunks, budget_tokens=1200)
+        assert sum(group.tokens for group in groups) == sum(
+            chunk.metadata["tokens"] for chunk in chunks
+        )
+
+    def test_packing_respects_budget_except_for_oversized_chunks(self, document):
+        chunks = self._chunks(document)
+        groups = pack_chunks(chunks, budget_tokens=1200)
+        for group in groups:
+            if len(group.chunk_indexes) > 1:
+                assert group.tokens <= 1200
+
+    def test_packing_reduces_request_count(self, document):
+        chunks = self._chunks(document)
+        groups = pack_chunks(chunks, budget_tokens=1200)
+        assert len(groups) < len(chunks)
+
+    def test_page_markers_rendered(self, document):
+        chunks = self._chunks(document)
+        groups = pack_chunks(chunks, budget_tokens=1200)
+        for group in groups:
+            for page in group.pages:
+                assert f"[Page {page}]" in group.text
+
+    def test_page_markers_can_be_disabled(self, document):
+        groups = pack_chunks(self._chunks(document), budget_tokens=1200, include_page_markers=False)
+        assert all("[Page" not in group.text for group in groups)
+
+    def test_empty_input(self):
+        assert pack_chunks([], budget_tokens=1000) == []
+
+    def test_tiny_budget_rejected(self, document):
+        with pytest.raises(ConfigError):
+            pack_chunks(self._chunks(document), budget_tokens=10)

@@ -29,3 +29,8 @@ class PdfTooLargeError(PdfError):
 
 class EmptyDocumentError(PdfError):
     """The PDF has no usable text layer (typically a scan)."""
+
+
+class SummarizationError(AppError):
+    """The model could not produce a usable summary."""
+

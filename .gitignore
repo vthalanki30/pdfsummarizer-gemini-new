@@ -19,7 +19,7 @@ coverage.xml
 htmlcov/
 
 # --- Outputs / data ---
-data/*.pdf
+data/*
 !data/.gitkeep
 outputs/
 *.summary.json

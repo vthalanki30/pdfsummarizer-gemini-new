@@ -26,7 +26,9 @@ DEFAULT_MAX_PAGES = 120
 DEFAULT_CHUNK_TOKENS = 3000
 DEFAULT_CHUNK_OVERLAP_TOKENS = 200
 DEFAULT_MAX_CONCURRENCY = 4
+DEFAULT_MAX_RETRIES = 3
 DEFAULT_TEMPERATURE = 0.2
+DEFAULT_STUFF_MAX_TOKENS = 18000
 
 
 def _env_str(env: Mapping[str, str], name: str, default: str = "") -> str:
@@ -67,7 +69,9 @@ class Settings:
     chunk_tokens: int = DEFAULT_CHUNK_TOKENS
     chunk_overlap_tokens: int = DEFAULT_CHUNK_OVERLAP_TOKENS
     max_concurrency: int = DEFAULT_MAX_CONCURRENCY
+    max_retries: int = DEFAULT_MAX_RETRIES
     temperature: float = DEFAULT_TEMPERATURE
+    stuff_max_tokens: int = DEFAULT_STUFF_MAX_TOKENS
 
     def __post_init__(self) -> None:
         if not self.api_key:
@@ -82,6 +86,8 @@ class Settings:
             )
         if self.max_concurrency < 1:
             raise ConfigError("MAX_CONCURRENCY must be at least 1.")
+        if self.max_retries < 0:
+            raise ConfigError("MAX_RETRIES must be 0 or more.")
         if not 0.0 <= self.temperature <= 2.0:
             raise ConfigError("TEMPERATURE must be between 0 and 2.")
 
@@ -101,7 +107,9 @@ class Settings:
             "chunk_tokens": self.chunk_tokens,
             "chunk_overlap_tokens": self.chunk_overlap_tokens,
             "max_concurrency": self.max_concurrency,
+            "max_retries": self.max_retries,
             "temperature": self.temperature,
+            "stuff_max_tokens": self.stuff_max_tokens,
             "api_key": self.masked_key,
         }
 
@@ -119,7 +127,11 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
             source, "CHUNK_OVERLAP_TOKENS", DEFAULT_CHUNK_OVERLAP_TOKENS, minimum=0
         ),
         max_concurrency=_env_int(source, "MAX_CONCURRENCY", DEFAULT_MAX_CONCURRENCY, minimum=1),
+        max_retries=_env_int(source, "MAX_RETRIES", DEFAULT_MAX_RETRIES, minimum=0),
         temperature=_env_float(source, "TEMPERATURE", DEFAULT_TEMPERATURE),
+        stuff_max_tokens=_env_int(
+            source, "STUFF_MAX_TOKENS", DEFAULT_STUFF_MAX_TOKENS, minimum=1000
+        ),
     )
 
 

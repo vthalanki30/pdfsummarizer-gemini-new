@@ -31,6 +31,14 @@ def test_text_property_joins_pages(simple_pdf: Path):
     assert document.total_chars == sum(page.chars for page in document.pages)
 
 
+def test_page_marked_text_labels_every_page(simple_pdf: Path):
+    document = load_pdf(simple_pdf)
+    marked = document.page_marked_text
+    assert marked.index("[Page 1]") < marked.index("ALPHA")
+    assert marked.index("[Page 2]") < marked.index("BETA")
+    assert marked.index("[Page 3]") < marked.index("GAMMA")
+
+
 def test_loads_from_bytes(simple_pdf: Path):
     document = load_pdf(simple_pdf.read_bytes(), name="upload.pdf")
     assert document.name == "upload.pdf"

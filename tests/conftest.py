@@ -13,6 +13,17 @@ from reportlab.pdfgen import canvas
 LINE_LIMIT = 95
 
 
+def pytest_collection_modifyitems(config, items):
+    """Skip `live` tests unless the user asked for them with ``-m live``."""
+    marker_expression = getattr(config.option, "markexpr", "") or ""
+    if "live" in marker_expression:
+        return
+    skip = pytest.mark.skip(reason="live test: run with `pytest -m live`")
+    for item in items:
+        if "live" in item.keywords:
+            item.add_marker(skip)
+
+
 def write_pdf(path: Path, pages: list[str]) -> Path:
     """Write a PDF where each entry in ``pages`` becomes one page of text."""
     pdf = canvas.Canvas(str(path), pagesize=LETTER)

@@ -11,6 +11,8 @@ import argparse
 import json
 import os
 import sys
+from contextlib import suppress
+from dataclasses import replace
 from pathlib import Path
 
 if __package__ in (None, ""):  # allow `python scripts/cli.py ...`
@@ -21,10 +23,13 @@ from src.config import (  # noqa: E402
     DEFAULT_CHUNK_OVERLAP_TOKENS,
     DEFAULT_CHUNK_TOKENS,
     DEFAULT_MAX_PAGES,
+    get_settings,
     load_env_files,
 )
 from src.errors import AppError, EmptyDocumentError  # noqa: E402
 from src.pdf_loader import load_pdf  # noqa: E402
+from src.schemas import SummarizeOptions  # noqa: E402
+from src.summarizer import Summarizer  # noqa: E402
 
 
 def _tuning() -> tuple[int, int, int]:
@@ -126,6 +131,56 @@ def inspect_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def summarize_command(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    if args.model:
+        settings = replace(settings, model=args.model)
+
+    document = load_pdf(args.pdf, max_pages=settings.max_pages)
+    options = SummarizeOptions(
+        strategy=args.strategy,
+        length=args.length,
+        tone=args.tone,
+        language=args.language,
+        include_page_notes=not args.no_page_notes,
+    )
+
+    progress = make_progress_printer(quiet=args.quiet)
+    result = Summarizer(settings).summarize(document, options, progress=progress)
+
+    markdown = result.to_markdown()
+    if args.md:
+        Path(args.md).write_text(markdown, encoding="utf-8")
+    if args.json:
+        Path(args.json).write_text(result.to_json(), encoding="utf-8")
+    if not args.no_print:
+        print(markdown)
+
+    usage = result.usage
+    print(
+        f"\n[{result.strategy}] {usage.calls} call(s), "
+        f"{usage.total_tokens:,} tokens, {usage.elapsed_seconds:.1f}s",
+        file=sys.stderr,
+    )
+    if args.md:
+        print(f"markdown -> {args.md}", file=sys.stderr)
+    if args.json:
+        print(f"json     -> {args.json}", file=sys.stderr)
+    return 0
+
+
+def make_progress_printer(quiet: bool):
+    def progress(stage: str, done: int, total: int) -> None:
+        if quiet:
+            return
+        labels = {"map": "reading", "refine": "refining", "reduce": "summarising"}
+        print(f"\r{labels.get(stage, stage)}: {done}/{total}", end="", file=sys.stderr, flush=True)
+        if done == total:
+            print(file=sys.stderr)
+
+    return progress
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pdf-summarizer",
@@ -142,10 +197,36 @@ def build_parser() -> argparse.ArgumentParser:
     inspect.add_argument("--no-page-limit", action="store_true", help="ignore MAX_PAGES")
     inspect.set_defaults(func=inspect_command)
 
+    summarize = subparsers.add_parser("summarize", help="summarise a PDF (calls the Gemini API)")
+    summarize.add_argument("pdf", help="path to a PDF file")
+    summarize.add_argument(
+        "--strategy",
+        choices=("auto", "stuff", "map_reduce", "refine"),
+        default="auto",
+        help="summarisation strategy (auto picks stuff for short documents)",
+    )
+    summarize.add_argument(
+        "--length", choices=("brief", "standard", "detailed"), default="standard"
+    )
+    summarize.add_argument(
+        "--tone", choices=("executive", "technical", "casual"), default="executive"
+    )
+    summarize.add_argument("--language", default="English", help="output language")
+    summarize.add_argument("--model", default="", help="override GEMINI_MODEL")
+    summarize.add_argument("--no-page-notes", action="store_true", help="skip per-page notes")
+    summarize.add_argument("--md", default="", help="also write markdown to this path")
+    summarize.add_argument("--json", default="", help="also write JSON to this path")
+    summarize.add_argument("--no-print", action="store_true", help="do not print to stdout")
+    summarize.add_argument("--quiet", action="store_true", help="no progress output")
+    summarize.set_defaults(func=summarize_command)
+
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        with suppress(AttributeError, ValueError):  # redirected streams
+            stream.reconfigure(encoding="utf-8", errors="replace")
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

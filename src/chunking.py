@@ -115,3 +115,74 @@ def group_by_page(chunks: list[Document]) -> dict[int, list[Document]]:
         page = int(chunk.metadata.get("page", 0))
         grouped.setdefault(page, []).append(chunk)
     return grouped
+
+
+@dataclass(frozen=True)
+class ChunkGroup:
+    """Adjacent chunks packed into one model request.
+
+    ``pages`` is what makes this safe: a group may span pages, but it always
+    records which pages it covers, so nothing loses its provenance.
+    """
+
+    text: str
+    pages: list[int]
+    tokens: int
+    chunk_indexes: list[int]
+
+
+def pack_chunks(
+    chunks: list[Document],
+    *,
+    budget_tokens: int = DEFAULT_CHUNK_TOKENS,
+    include_page_markers: bool = True,
+) -> list[ChunkGroup]:
+    """Pack consecutive chunks into budget-sized groups for the map step.
+
+    Page-pure chunking is right for citations but produces one request per page
+    on typical documents. Packing keeps the map step proportional to token count
+    instead of page count, while page markers preserve attribution.
+    """
+    if budget_tokens < 100:
+        raise ConfigError(f"budget_tokens must be >= 100, got {budget_tokens}")
+    if not chunks:
+        return []
+
+    groups: list[ChunkGroup] = []
+    current: list[Document] = []
+    current_tokens = 0
+
+    def flush() -> None:
+        nonlocal current, current_tokens
+        if not current:
+            return
+        parts: list[str] = []
+        pages: list[int] = []
+        last_page: int | None = None
+        for chunk in current:
+            page = int(chunk.metadata.get("page", 0))
+            if page not in pages:
+                pages.append(page)
+            if include_page_markers and page != last_page:
+                parts.append(f"[Page {page}]")
+                last_page = page
+            parts.append(chunk.page_content)
+        groups.append(
+            ChunkGroup(
+                text="\n\n".join(parts),
+                pages=pages,
+                tokens=current_tokens,
+                chunk_indexes=[int(c.metadata.get("chunk_index", -1)) for c in current],
+            )
+        )
+        current = []
+        current_tokens = 0
+
+    for chunk in chunks:
+        chunk_tokens = int(chunk.metadata.get("tokens", estimate_tokens(chunk.page_content)))
+        if current and current_tokens + chunk_tokens > budget_tokens:
+            flush()
+        current.append(chunk)
+        current_tokens += chunk_tokens
+    flush()
+    return groups

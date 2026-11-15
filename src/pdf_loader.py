@@ -130,6 +130,11 @@ class PdfDocument:
         return "\n\n".join(page.text for page in self.pages if page.text)
 
     @property
+    def page_marked_text(self) -> str:
+        """Whole text with ``[Page N]`` markers, for single-call summarisation."""
+        return "\n\n".join(f"[Page {page.number}]\n{page.text}" for page in self.pages if page.text)
+
+    @property
     def title(self) -> str:
         return self.metadata.get("title") or self.name
 
